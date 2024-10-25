@@ -41,12 +41,42 @@ func GetByUser(w http.ResponseWriter, r *http.Request) {
 	// Ambil user_id dari context
 	userID := r.Context().Value("user_id").(int)
 
-	if err := config.DB.Where("user_id = ?", userID).Find(&task).Error; err != nil {
+	// Ambil query parameter untuk sorting
+	sortBy := r.URL.Query().Get("sort_by")
+	order := r.URL.Query().Get("order")
+
+	// Ambil parameter query untuk filtering
+	status := r.URL.Query().Get("status")
+	priority := r.URL.Query().Get("priority")
+
+	// Untuk sorting
+	if sortBy == "" {
+		sortBy = "due_date"
+	}
+	if order == "" {
+		order = "desc"
+	}
+
+	// Untuk filter
+	query := config.DB.Where("user_id = ?", userID)
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if priority != "" {
+		query = query.Where("priority = ?", priority)
+	}
+
+	if order != "asc" && order != "desc" {
+		helper.ResponseError(w, http.StatusBadRequest, "Invalid order parameter, must be 'asc' or 'desc'")
+		return
+	}
+
+	if err := query.Order(sortBy + " " + order).Find(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			helper.ResponseError(w, http.StatusNotFound, "Task not found")
 			return
 		}
-		helper.ResponseError(w, http.StatusInternalServerError, "Error finding task")
+		helper.ResponseError(w, http.StatusInternalServerError, "Error finding tasks")
 		return
 	}
 
